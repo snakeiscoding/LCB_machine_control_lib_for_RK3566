@@ -1,0 +1,8 @@
+liblcb_protocol third-party kit
+Built:     2026-10-15 10:20:48 +0800
+Compiler:  aarch64-buildroot-linux-gnu-gcc.br_real (Buildroot -g4f5e3bf1bf-dirty) 12.3.0
+Target:    ELF 64-bit LSB shared object, ARM aarch64, version 1 (SYSV), dynamically linked, stripped
+Needs:     libm.so.6 libc.so.6 ld-linux-aarch64.so.1 
+GLIBC:     GLIBC_2.17 GLIBC_2.34 
+Headers:   49 files in include/lcb_protocol/<layer>/
+SHA256:    dc80f55dd8672dc7f1f7e5e811bbc1467707339a7aa398471d9c15d067a0acb3  lib/liblcb_protocol.so

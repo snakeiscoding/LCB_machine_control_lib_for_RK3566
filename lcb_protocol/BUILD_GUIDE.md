@@ -12,6 +12,7 @@ This guide covers building `lcb_protocol` with its own Makefile or CMakeLists.tx
 | GNU Make | 3.82+ | For the Makefile |
 | CMake | 3.12+ | For CMakeLists.txt (`file(GLOB ... CONFIGURE_DEPENDS)`) |
 | pthreads | — | POSIX threads |
+| Linux kernel headers | — | `linux/usbdevice_fs.h` for the hardware layer (USB RS485). Included in the Buildroot SDK sysroot and in `linux-libc-dev` on Ubuntu/Debian |
 
 ## What Gets Built
 
@@ -43,10 +44,33 @@ make help       # list targets and variables
 | `shared` | `lib/liblcb_protocol.so` |
 | `test` | `bin/test_lcb`, `bin/test_constants` |
 | `example` | `bin/simple_usage` |
-| `install` | Libraries to `$(PREFIX)/lib`, public headers (no `*_internal.h`) to `$(PREFIX)/include/lcb_protocol` |
+| `install` | Libraries to `$(PREFIX)/lib`, public headers (no `*_internal.h`) to `$(PREFIX)/include/lcb_protocol/<layer>/` (see below) |
 | `clean` | Removes `obj/`, `lib/`, `bin/` |
 
 Object files mirror the source tree (`obj/src/protocol/Comm/lcb_comm.o`, ...). Dependency files (`*.d`) are generated, so editing a header rebuilds only the sources that include it.
+
+### Installed Header Layout
+
+`make install` and `cmake --install` both keep the 5-layer layout of `inc/`:
+
+```
+$(PREFIX)/include/lcb_protocol/
+├── capabilities/              (Layer_1)
+├── adapters/                  (Layer_2)
+├── control/                   (Layer_3)
+├── protocol/MachineHandler/   (Layer_3, machine handlers)
+├── protocol/Comm/             (Layer_4)
+├── hardware/                  (Layer_5, USB RS485)
+└── third_party/cJSON/
+```
+
+Headers include each other by file name, so code using the installed headers needs one `-I` per directory:
+
+```bash
+INC=$PREFIX/include/lcb_protocol
+-I$INC/capabilities -I$INC/adapters -I$INC/control -I$INC/protocol/Comm \
+-I$INC/protocol/MachineHandler -I$INC/hardware -I$INC/third_party/cJSON
+```
 
 ### Variables
 
@@ -154,8 +178,8 @@ To link the shared library instead, replace the `.a` with `-L$LCB/lib -llcb_prot
 
 ## Adding Code
 
-- **New file in an existing layer** (for example a new machine handler in `protocol/MachineHandler`): put the `.c` in `src/<layer>/` and the `.h` in `inc/<layer>/`. The Makefile and CMake both pick it up automatically. CMake re-globs at build time thanks to `CONFIGURE_DEPENDS`.
-- **New layer directory**: add it to `MODULES` in the Makefile and to `LCB_MODULES` in CMakeLists.txt, and to the include list of any external build.
+- **New file in an existing layer** (for example a new machine handler in `protocol/MachineHandler`): put the `.c` in `src/<layer>/` and the `.h` in `inc/<layer>/`. The Makefile and CMake both pick it up automatically, including `install` into the matching `include/lcb_protocol/<layer>/`. CMake re-globs at build time thanks to `CONFIGURE_DEPENDS`.
+- **New layer directory**: add it to `MODULES` in the Makefile and to `LCB_MODULES` in CMakeLists.txt. Also add it to the include list of any external build, including `LCB_LAYERS` in `../3rd_used/example/Makefile` and the include list in `../3rd_used/README.md`.
 - Include headers by file name only (`#include "treadmill_handler.h"`). Keep private structs in `*_internal.h`; these are not installed.
 
 ## Troubleshooting

@@ -15,9 +15,11 @@ The code is organised in a 5-layer layout. Each layer has a matching `inc/<layer
 | Layer_3 | `control/` | Machine control, such as workout and calibration flow (chimera2 `WorkoutControllerService`) |
 | Layer_3 | `protocol/MachineHandler/` | Per-machine handlers: heartbeat, polling and state machines (Java `<Machine>Handler.java`) |
 | Layer_4 | `protocol/Comm/` | LCB packet framing, CRC8, TX priority queue, RX parsing, response dispatch |
-| Layer_5 | `hardware/` | Reserved for serial-port I/O (currently empty) |
+| Layer_5 | `hardware/` | USB-to-RS485 adapters (CH340/CH341) over usbdevfs, exposed to `lcb_comm` as a plain fd |
 
 Headers are included by file name only (`#include "lcb_comm.h"`). Every module directory must therefore be on the include path; see [Building](#building).
+
+Installed and packaged headers keep the same layout: `make install`, `cmake --install` and the third-party kit (`../3rd_used/include/lcb_protocol/<layer>/`) all use one directory per layer. See [BUILD_GUIDE.md](BUILD_GUIDE.md#installed-header-layout).
 
 ## Directory Structure
 
@@ -30,14 +32,14 @@ lcb_protocol/
 │   ├── adapters/                         # treadmill_interface, treadmill_machine_adapter, tcv_fx_spin_bike_interface
 │   ├── capabilities/                     # frame_config*, machine_config, calibration_table, value_range, ...
 │   ├── control/                          # treadmill_control
-│   └── hardware/                         # (reserved, empty)
+│   └── hardware/                         # usb_rs485, ch340, usb_serial_bridge, usb_host (+ README.md)
 ├── src/                                  # Same layout as inc/
 │   ├── protocol/Comm/                    # 16 .c files
 │   ├── protocol/MachineHandler/          # <machine>_handler.c + <machine>_lcb_cb.c for 11 handlers
 │   ├── adapters/                         # 3 .c files
 │   ├── capabilities/                     # 11 .c files
 │   ├── control/                          # 1 .c file
-│   └── hardware/                         # (reserved, empty)
+│   └── hardware/                         # 4 .c files + private hw_logging.h
 ├── third_party/cJSON/                    # Bundled cJSON (used by frame_config_json_loader.c)
 ├── test/                                 # Stand-alone C test programs
 ├── examples/                             # simple_usage.c
@@ -89,6 +91,20 @@ Each handler is made of `<machine>_handler.h`, `<machine>_handler_internal.h`, `
 | adapters | `treadmill_interface` (ext-status, safety key, error code), `treadmill_machine_adapter` (machine-control commands), `tcv_fx_spin_bike_interface` (unit conversion) |
 | capabilities | `frame_config_spec` / `frame_config_json_loader` (parse `frame_configs.json` with cJSON), `frame_config_registry` (lookup by model / serial / LCB type), `frame_config_data*` (resolved per-model data), `machine_config`, `machine_category`, `value_range`, `calibration_table`, `treadmill_machine_convert`, `frame_config` (older Bike-only schema) |
 | control | `treadmill_control` (Play/Pause/Resume/Stop/EStop, calibration; call `treadmill_control_tick()` periodically) |
+
+### hardware — USB RS485 (Layer_5)
+
+Lets the LCB link run over a USB-to-RS485 adapter (CH340/CH341, `1a86:7523` / `1a86:5523`) instead of a UART. Ported from the ProjectOne Android app's Layer_5 driver. On Linux the usbdevfs node `/dev/bus/usb/BBB/DDD` is found through sysfs instead of Android's `UsbManager`.
+
+| File | Description |
+|------|-------------|
+| `usb_rs485.h/.c` | One-call API: `usb_rs485_open(node or NULL, baud)` finds and opens the adapter and returns an fd for `serial_port_t.fd`; `usb_rs485_close()` after `lcb_comm` has stopped |
+| `ch340.h/.c`, `ch340_internal.h` | CH340/CH341 driver: init sequence, baud divisor, LCR, DTR/RTS, modem status, break |
+| `usb_serial_bridge.h/.c` | socketpair + RX/TX pump threads; the upper end is a non-blocking stream fd, so `lcb_comm` (Layer_4) is unchanged and `lcb_comm_stop()` returns promptly |
+| `usb_host.h/.c` | usbdevfs ioctl transport (control/bulk/claim, kernel-driver detach) and descriptor parsing |
+| `hw_logging.h` (in `src/hardware/`) | Private stderr logging; independent of `lcb_logging.h` to avoid an upward dependency |
+
+Opening the node needs read/write access to `/dev/bus/usb` (root or a udev rule). See `../3rd_used/README.md` section 7.6 for usage.
 
 ## Building
 
@@ -221,6 +237,8 @@ The machine handlers add their own heartbeat/polling threads. Callbacks are invo
 | `examples/simple_usage.c` | `make example`, CMake `BUILD_EXAMPLES` | API walkthrough without hardware |
 
 The gtest sources in `../test/*.cpp` are kept, but no build file currently compiles them.
+
+The hardware layer has no unit tests in this repository; the Android app's hardware gtests were not ported. `../3rd_used/example/lcb_demo -d usb` exercises it on a board with a CH340 adapter attached.
 
 ## Related Documents
 

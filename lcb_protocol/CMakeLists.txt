@@ -31,10 +31,6 @@ list(APPEND LCB_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cJSON/cJSON.c)
 list(APPEND LCB_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cJSON/cJSON.h)
 list(APPEND LCB_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cJSON)
 
-# Public headers for install (internal headers stay private)
-set(LCB_PUBLIC_HEADERS ${LCB_HEADERS})
-list(FILTER LCB_PUBLIC_HEADERS EXCLUDE REGEX "_internal\\.h$")
-
 find_package(Threads REQUIRED)
 
 # Common settings for the static and shared library targets
@@ -86,8 +82,19 @@ if(BUILD_SHARED_LIBS)
             LIBRARY DESTINATION lib)
 endif()
 
-install(FILES ${LCB_PUBLIC_HEADERS}
-        DESTINATION include/lcb_protocol)
+# Public headers keep the layer layout of inc/ (internal headers stay private;
+# empty layers get an empty directory)
+foreach(module IN LISTS LCB_MODULES)
+    file(GLOB module_headers ${CMAKE_CURRENT_SOURCE_DIR}/inc/${module}/*.h)
+    list(FILTER module_headers EXCLUDE REGEX "_internal\\.h$")
+    if(module_headers)
+        install(FILES ${module_headers} DESTINATION include/lcb_protocol/${module})
+    else()
+        install(DIRECTORY DESTINATION include/lcb_protocol/${module})
+    endif()
+endforeach()
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cJSON/cJSON.h
+        DESTINATION include/lcb_protocol/third_party/cJSON)
 
 # Package information
 set(CPACK_PACKAGE_NAME "lcb_protocol")

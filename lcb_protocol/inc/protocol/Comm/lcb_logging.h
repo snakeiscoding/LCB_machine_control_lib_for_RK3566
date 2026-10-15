@@ -19,6 +19,10 @@
 #define LCB_LOG_PRINT_(level, tag, fmt, ...) \
     fprintf(stderr, "[" level "] %s: " fmt "\n", tag, ##__VA_ARGS__)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Runtime enable/disable flags for each log level */
 extern bool lcb_log_info_enabled;
 extern bool lcb_log_debug_enabled;
@@ -46,6 +50,10 @@ void lcb_log_set_debug(bool enabled);
  * @param enabled true to enable ERROR logs, false to disable
  */
 void lcb_log_set_error(bool enabled);
+
+#ifdef __cplusplus
+}
+#endif
 
 /**
  * @brief INFO level logging macro (conditional)

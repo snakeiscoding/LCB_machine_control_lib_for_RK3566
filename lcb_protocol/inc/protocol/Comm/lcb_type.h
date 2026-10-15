@@ -86,7 +86,15 @@ typedef uint8_t LcbType_t;
 
 #define LCB_TYPE_UNKNOWN                    ((uint8_t)0x00)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Function declaration: for debugging, converts a type value into its string name
 const char* LcbType_toString(LcbType_t type);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // LCB_TYPE_H

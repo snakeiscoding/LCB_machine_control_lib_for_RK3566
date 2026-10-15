@@ -30,8 +30,9 @@ SOURCES = $(wildcard $(addsuffix /*.c,$(SRCDIRS))) third_party/cJSON/cJSON.c
 OBJECTS = $(patsubst %.c,$(OBJDIR)/%.o,$(SOURCES))
 DEPS = $(OBJECTS:.o=.d)
 
-# Public headers for install (internal headers stay private)
-HEADERS = $(filter-out %_internal.h,$(wildcard $(addsuffix /*.h,$(INCDIRS))))
+# Installed headers keep the layer layout of inc/ (internal headers stay private):
+#   $(PREFIX)/include/lcb_protocol/<module>/*.h, .../third_party/cJSON/cJSON.h
+INCLUDEDIR = $(DESTDIR)$(PREFIX)/include/lcb_protocol
 
 LIBS = -pthread -lm
 
@@ -63,7 +64,7 @@ shared: $(SHARED_LIB)
 $(SHARED_LIB): $(OBJECTS)
 	@mkdir -p $(dir $@)
 	@echo "Creating shared library: $@"
-	$(CC) -shared $(LDFLAGS) -o $@ $^ $(LIBS) $(LDLIBS)
+	$(CC) -shared -Wl,-soname,$(LIB_NAME).so $(LDFLAGS) -o $@ $^ $(LIBS) $(LDLIBS)
 
 # Compile source files (object tree mirrors the source tree)
 $(OBJDIR)/%.o: %.c
@@ -93,12 +94,19 @@ clean:
 	rm -rf $(OBJDIR) $(LIBDIR) $(BINDIR)
 	rm -f test/test_lcb
 
-# Install (optional): libraries to $(PREFIX)/lib, public headers to $(PREFIX)/include/lcb_protocol
+# Install (optional): libraries to $(PREFIX)/lib, public headers to
+# $(PREFIX)/include/lcb_protocol/<layer>/ (empty layers get an empty directory)
 install: all
 	@echo "Installing to $(DESTDIR)$(PREFIX)..."
-	install -d $(DESTDIR)$(PREFIX)/lib $(DESTDIR)$(PREFIX)/include/lcb_protocol
+	install -d $(DESTDIR)$(PREFIX)/lib
 	install -m 644 $(STATIC_LIB) $(SHARED_LIB) $(DESTDIR)$(PREFIX)/lib/
-	install -m 644 $(HEADERS) $(DESTDIR)$(PREFIX)/include/lcb_protocol/
+	@for d in $(INCDIRS); do \
+	    dest=$(INCLUDEDIR)/$${d#inc/}; \
+	    install -d $$dest; \
+	    for h in $$d/*.h; do \
+	        case $$h in *_internal.h|"$$d/*.h") ;; *) install -m 644 $$h $$dest/ ;; esac; \
+	    done; \
+	done
 
 # Help
 help:
